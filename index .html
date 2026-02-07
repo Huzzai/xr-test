@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>WebXR Physics: Grab & Throw</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>body { margin: 0; background: #000; overflow: hidden; }</style>
+</head>
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+        import * as CANNON from 'cannon-es';
+
+        // --- 1. Physics Setup (Cannon.js) ---
+        const world = new CANNON.World();
+        world.gravity.set(0, -1, 0); // Low gravity for surreal feel
+        world.broadphase = new CANNON.NaiveBroadphase();
+        world.solver.iterations = 10;
+
+        // Physics Materials
+        const slipperyMat = new CANNON.Material('slippery');
+        const frictionContact = new CANNON.ContactMaterial(slipperyMat, slipperyMat, {
+            friction: 0.0,
+            restitution: 0.8 // Bouncy
+        });
+        world.addContactMaterial(frictionContact);
+
+        // Floor (Invisible physical floor)
+        const floorBody = new CANNON.Body({
+            mass: 0, // Static
+            shape: new CANNON.Plane(),
+            material: slipperyMat
+        });
+        floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+        floorBody.position.y = 0; // Floor level
+        world.addBody(floorBody);
+
+        // The Blob Body
+        const blobShape = new CANNON.Sphere(0.2); // Matches visual radius roughly
+        const blobBody = new CANNON.Body({
+            mass: 1,
+            shape: blobShape,
+            material: slipperyMat,
+            linearDamping: 0.5,
+            angularDamping: 0.5
+        });
+        blobBody.position.set(0, 1.5, -0.5);
+        world.addBody(blobBody);
+
+        // --- 2. Visual Setup (Three.js) ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        document.body.appendChild(ARButton.createButton(renderer, { 
+            requiredFeatures: ['hit-test'],
+            optionalFeatures: ['hand-tracking'] 
+        }));
+
+        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3);
+        light.position.set(0.5, 1, 0.25);
+        scene.add(light);
+
+        // Surreal Shader Material (Same as before)
+        const material = new THREE.ShaderMaterial({
+            vertexShader: `
+                varying vec3 vNormal;
+                void main() {
+                    vNormal = normalMatrix * normal;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vNormal;
+                uniform float uTime;
+                void main() {
+                    // Iridescent coloring
+                    vec3 col = 0.5 + 0.5 * cos(uTime + vNormal.xyx + vec3(0,2,4));
+                    float fresnel = pow(1.0 - dot(vNormal, vec3(0,0,1)), 2.0);
+                    col += fresnel * vec3(1.0);
+                    gl_FragColor = vec4(col, 0.9);
+                }
+            `,
+            uniforms: { uTime: { value: 0 } },
+            transparent: true
+        });
+
+        const visualBlob = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2, 2), material);
+        scene.add(visualBlob);
+
+        // --- 3. Interaction Logic ---
+        
+        const controllerFactory = new XRControllerModelFactory();
+        const controllers = [];
+
+        // Helper to create controller wrapper
+        function buildController(index) {
+            const controller = renderer.xr.getController(index);
+            controller.userData.isSelecting = false;
+            
+            // Visual ray
+            const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
+            const line = new THREE.Line(geometry);
+            line.scale.z = 5;
+            controller.add(line);
+
+            scene.add(controller);
+            controllers.push(controller);
+
+            // Events
+            controller.addEventListener('selectstart', () => { controller.userData.isSelecting = true; });
+            controller.addEventListener('selectend', () => { controller.userData.isSelecting = false; });
+            
+            return controller;
+        }
+
+        const ctrl0 = buildController(0);
+        const ctrl1 = buildController(1);
+
+        // Grab State
+        let grabbedBody = null;
+        let grabConstraint = null;
+
+        function handleInteraction() {
+            controllers.forEach((controller) => {
+                if (controller.userData.isSelecting) {
+                    if (!grabbedBody) {
+                        // Check distance
+                        const ctrlPos = new THREE.Vector3();
+                        controller.getWorldPosition(ctrlPos);
+                        
+                        // Simple distance check (0.3m grab radius)
+                        const dist = ctrlPos.distanceTo(visualBlob.position);
+                        
+                        if (dist < 0.3) {
+                            // GRAB!
+                            grabbedBody = blobBody;
+                            
+                            // Create a kinematic body at controller position
+                            const handBody = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
+                            handBody.position.copy(ctrlPos);
+                            world.addBody(handBody);
+                            
+                            // Lock constraint (rigid link)
+                            grabConstraint = new CANNON.PointToPointConstraint(
+                                handBody, new CANNON.Vec3(0,0,0),
+                                blobBody, new CANNON.Vec3(0,0,0)
+                            );
+                            world.addConstraint(grabConstraint);
+                            
+                            // Save ref to update handBody position
+                            controller.userData.handBody = handBody;
+                        }
+                    } else if (controller.userData.handBody) {
+                        // UPDATE GRAB POSITION
+                        const p = new THREE.Vector3();
+                        controller.getWorldPosition(p);
+                        controller.userData.handBody.position.copy(p);
+                    }
+                } else {
+                    // RELEASE
+                    if (grabbedBody && controller.userData.handBody) {
+                        world.removeConstraint(grabConstraint);
+                        world.removeBody(controller.userData.handBody);
+                        
+                        // Add some throw velocity (simple momentum)
+                        // In a real app, calculate delta position over last frame
+                        
+                        grabbedBody = null;
+                        grabConstraint = null;
+                        controller.userData.handBody = null;
+                    }
+                }
+            });
+        }
+
+        // --- 4. Loop ---
+        const clock = new THREE.Clock();
+        const timeStep = 1 / 60;
+
+        renderer.setAnimationLoop(() => {
+            const dt = clock.getDelta();
+
+            // Step Physics
+            world.step(timeStep, dt, 3);
+
+            // Sync Visuals
+            visualBlob.position.copy(blobBody.position);
+            visualBlob.quaternion.copy(blobBody.quaternion);
+            
+            // Shader update
+            material.uniforms.uTime.value = clock.getElapsedTime();
+
+            // Handle Grabbing
+            handleInteraction();
+
+            // Keep blob in bounds (Reset if falls too far)
+            if (blobBody.position.y < -1) {
+                blobBody.position.set(0, 1.5, -0.5);
+                blobBody.velocity.set(0, 0, 0);
+            }
+
+            renderer.render(scene, camera);
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
