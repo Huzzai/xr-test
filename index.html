@@ -195,31 +195,44 @@
         const clock = new THREE.Clock();
         const timeStep = 1 / 60;
 
-        renderer.setAnimationLoop(() => {
-            const dt = clock.getDelta();
+        // --- Enhanced Mobile Interaction ---
+let isTouching = false;
 
-            // Step Physics
-            world.step(timeStep, dt, 3);
+window.addEventListener('touchstart', () => { isTouching = true; });
+window.addEventListener('touchend', () => { isTouching = false; });
 
-            // Sync Visuals
-            visualBlob.position.copy(blobBody.position);
-            visualBlob.quaternion.copy(blobBody.quaternion);
-            
-            // Shader update
-            material.uniforms.uTime.value = clock.getElapsedTime();
+renderer.setAnimationLoop(() => {
+    const dt = clock.getDelta();
+    world.step(timeStep, dt, 3);
 
-            // Handle Grabbing
-            handleInteraction();
+    // Sync Visuals
+    visualBlob.position.copy(blobBody.position);
+    visualBlob.quaternion.copy(blobBody.quaternion);
+    material.uniforms.uTime.value = clock.getElapsedTime();
 
-            // Keep blob in bounds (Reset if falls too far)
-            if (blobBody.position.y < -1) {
-                blobBody.position.set(0, 1.5, -0.5);
-                blobBody.velocity.set(0, 0, 0);
-            }
+    // MOBILE FIX: If you touch the screen, pull the blob toward your phone
+    if (isTouching) {
+        const cameraPos = new THREE.Vector3();
+        camera.getWorldPosition(cameraPos);
+        
+        // Calculate vector from blob to camera
+        const force = new CANNON.Vec3(
+            cameraPos.x - blobBody.position.x,
+            cameraPos.y - blobBody.position.y,
+            cameraPos.z - blobBody.position.z
+        );
+        force.normalize();
+        blobBody.applyImpulse(force.scale(0.5), blobBody.position);
+    }
 
-            renderer.render(scene, camera);
-        });
+    // RESET: If the blob gets lost, tap with two fingers or wait 5 seconds
+    if (blobBody.position.y < -5) {
+        blobBody.position.set(0, 1.5, -0.5);
+        blobBody.velocity.set(0,0,0);
+    }
 
+    renderer.render(scene, camera);
+});
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
