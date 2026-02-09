@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cosmic Weaver: Level 6 (Simulation Core)</title>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --ui-color: rgba(0, 255, 255, 0.15);
+            --ui-border: rgba(0, 255, 255, 0.3);
+            --accent: #00ffff;
+            --text-main: #e0ffff;
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: var(--bg-color);
+            font-family: 'Courier New', Courier, monospace; 
+            color: var(--text-main);
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
+            pointer-events: none; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 20px;
+        }
+
+        .interactive { pointer-events: auto; }
+
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(0, 20, 30, 0.8); backdrop-filter: blur(10px);
+            padding: 12px 24px; border-radius: 4px; border: 1px solid var(--ui-border);
+            max-width: 900px; margin: 0 auto; width: 100%;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.15);
+        }
+
+        h1 {
+            font-size: 1.1rem; letter-spacing: 1px; margin: 0; 
+            color: var(--accent); text-shadow: 0 0 8px var(--accent);
+        }
+
+        .controls { display: flex; gap: 15px; align-items: center; }
+
+        button {
+            background: transparent; border: 1px solid var(--ui-border);
+            color: var(--accent); padding: 8px 16px; cursor: pointer;
+            font-family: inherit; font-size: 0.8rem;
+            transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        button:hover { background: rgba(0, 255, 255, 0.1); box-shadow: 0 0 15px rgba(0, 255, 255, 0.4); }
+
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 20;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; transition: opacity 1s ease;
+        }
+
+        #start-screen.hidden { opacity: 0; pointer-events: none; }
+
+        .hero-text h2 {
+            font-size: 3rem; margin-bottom: 10px; color: #fff;
+            text-shadow: 0 0 30px var(--accent);
+        }
+        .hero-text p { color: #8892b0; margin-bottom: 30px; max-width: 500px; line-height: 1.5; }
+
+        .cta-button {
+            font-size: 1.2rem; padding: 15px 40px; border: 1px solid var(--accent);
+            background: rgba(0, 255, 255, 0.05); color: var(--accent);
+            cursor: pointer; transition: 0.3s;
+        }
+        .cta-button:hover { background: var(--accent); color: #000; box-shadow: 0 0 50px var(--accent); }
+
+        #toast {
+            position: absolute; bottom: 40px; left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: rgba(0, 20, 40, 0.95); border: 1px solid var(--accent);
+            padding: 12px 24px; opacity: 0; pointer-events: none;
+            font-size: 0.9rem; color: var(--accent); transition: all 0.3s; 
+            white-space: nowrap; letter-spacing: 1px;
+        }
+        #toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        .instructions {
+            position: absolute; bottom: 20px; width: 100%; text-align: center;
+            font-size: 0.75rem; color: rgba(0, 255, 255, 0.3); pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <main>
+        <canvas id="cosmic-canvas"></canvas>
+        
+        <div id="ui-layer">
+            <header class="interactive">
+                <h1>Simulation Core</h1>
+                <div class="controls">
+                    <button id="btn-clear">Clear Simulation</button>
+                </div>
+            </header>
+
+            <div class="instructions">
+                Draw to create SOLID WALLS.<br>Watch the fluid flow around them.
+            </div>
+        </div>
+
+        <div id="toast"></div>
+
+        <div id="start-screen" class="interactive">
+            <div class="hero-text">
+                <h2>Level 6: Simulation Core</h2>
+                <p>The void is now fluid.<br>
+                Webs act as solid barriers.<br>
+                Weave to divert the flow of reality.</p>
+                <button id="btn-start" class="cta-button">Initialize Core</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        /**
+         * LEVEL 6 ENGINE
+         * Features: Fluid Particle System, Solid Collision Walls, Additive Blending
+         */
+
+        const config = {
+            particleCount: 800, // High count for fluid look
+            wallThickness: 6,
+            fluidSpeed: 2,
+            gravity: 0.02 // Slight gravity
+        };
+
+        const state = {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            mouseX: 0,
+            mouseY: 0,
+            isDragging: false,
+            dragStart: {x:0, y:0},
+            walls: [], // Array of line segments {p1, p2}
+            particles: [], 
+            audioContext: null,
+            masterGain: null,
+            hue: 180,
+            time: 0
+        };
+
+        // --- Audio Engine (Reusing the stable version) ---
+
+        const scale = [
+            65.41, 82.41, 98.00, 110.00, 130.81, 
+            164.81, 196.00, 220.00, 261.63,      
+            329.63, 392.00, 440.00, 523.25       
+        ];
+
+        class AudioEngine {
+            constructor() {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                state.audioContext = new AC();
+                state.masterGain = state.audioContext.createGain();
+                state.masterGain.gain.value = 0.4;
+                state.masterGain.connect(state.audioContext.destination);
+                this.convolver = state.audioContext.createConvolver();
+                this.setupReverb();
+                state.masterGain.connect(this.convolver);
+                this.convolver.connect(state.audioContext.destination);
+            }
+            
+            setupReverb() {
+                const rate = state.audioContext.sampleRate;
+                const len = rate * 3.0;
+                const imp = state.audioContext.createBuffer(2, len, rate);
+                for(let c=0; c<2; c++){
+                    const d = imp.getChannelData(c);
+                    for(let i=0; i<len; i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/len, 3);
+                }
+                this.convolver.buffer = imp;
+            }
+
+            resume() { if(state.audioContext.state==='suspended') state.audioContext.resume(); }
+
+            playWallSound(x, y, velocity) {
+                if(!state.audioContext) return;
+                const t = state.audioContext.currentTime;
+                
+                const i = Math.floor((1-y/state.height)*scale.length);
+                const freq = scale[Math.max(0, Math.min(i, scale.length-1))];
+
+                const osc = state.audioContext.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, t);
+
+                const subOsc = state.audioContext.createOscillator();
+                subOsc.type = 'triangle';
+                subOsc.frequency.setValueAtTime(freq / 2, t);
+
+                const env = state.audioContext.createGain();
+                const vol = Math.min(velocity/10, 0.4);
+                env.gain.setValueAtTime(0, t);
+                env.gain.linearRampToValueAtTime(vol, t+0.05);
+                env.gain.exponentialRampToValueAtTime(0.001, t+0.8);
+
+                const pan = state.audioContext.createStereoPanner();
+                pan.pan.value = (x/state.width)*2 - 1;
+
+                osc.connect(env);
+                subOsc.connect(env);
+                env.connect(pan);
+                pan.connect(state.masterGain);
+
+                osc.start(t); osc.stop(t+1);
+                subOsc.start(t); subOsc.stop(t+1);
+            }
+        }
+
+        // --- Physics Objects ---
+
+        class FluidParticle {
+            constructor() {
+                this.init();
+            }
+
+            init() {
+                this.x = Math.random() * state.width;
+                this.y = Math.random() * state.height;
+                // Flow velocity (initially moving right)
+                this.vx = (Math.random() * 0.5) + 0.5; 
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.radius = Math.random() * 2 + 1;
+                this.color = `hsla(${Math.random()*60 + 160}, 100%, 70%, 0.8)`; // Cyans and Blues
+            }
+
+            update() {
+                // Apply Flow
+                this.x += this.vx * config.fluidSpeed;
+                this.y += this.vy * config.fluidSpeed;
+                
+                // Gravity
+                this.vy += config.gravity;
+
+                // Screen Wrap
+                if(this.x > state.width) {
+                    this.x = 0;
+                    this.y = Math.random() * state.height; // Respawn Y to prevent clumping
+                }
+                if(this.y > state.height) {
+                    this.y = 0;
+                    this.x = Math.random() * state.width;
+                }
+
+                // Mouse Interaction (Repel)
+                const dx = this.x - state.mouseX;
+                const dy = this.y - state.mouseY;
+                const distSq = dx*dx + dy*dy;
+                if(distSq < 10000) {
+                    const dist = Math.sqrt(distSq);
+                    const force = (100 - dist) * 0.01;
+                    this.vx += (dx/dist) * force;
+                    this.vy += (dy/dist) * force;
+                }
+
+                // Friction (damping)
+                this.vx *= 0.99;
+                this.vy *= 0.99;
+
+                // Normalize speed to keep "Flow" constant
+                const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+                if(speed > 3) {
+                    this.vx = (this.vx / speed) * 3;
+                    this.vy = (this.vy / speed) * 3;
+                }
+            }
+        }
+
+        // --- Core Logic ---
+
+        const canvas = document.getElementById('cosmic-canvas');
+        const ctx = canvas.getContext('2d');
+        const toast = document.getElementById('toast');
+        const startScreen = document.getElementById('start-screen');
+
+        function init() {
+            resize();
+            window.onresize = resize;
+            
+            // Initialize Fluid
+            for(let i=0; i<config.particleCount; i++) {
+                state.particles.push(new FluidParticle());
+            }
+
+            // Events
+            canvas.onmousedown = onDown;
+            canvas.onmousemove = onMove;
+            window.onmouseup = onUp;
+            canvas.ontouchstart = e => onDown(e.touches[0]);
+            canvas.ontouchmove = e => { e.preventDefault(); onMove(e.touches[0]); };
+            window.ontouchend = onUp;
+
+            document.getElementById('btn-start').onclick = start;
+            document.getElementById('btn-clear').onclick = () => {
+                state.walls = [];
+                state.particles.forEach(p => p.init());
+                showToast("Simulation Reset");
+            };
+
+            loop();
+        }
+
+        function start() {
+            state.audio = new AudioEngine();
+            state.audio.resume();
+            startScreen.classList.add('hidden');
+            showToast("Simulation Core Online.");
+        }
+
+        function resize() {
+            state.width = window.innerWidth;
+            state.height = window.innerHeight;
+            canvas.width = state.width;
+            canvas.height = state.height;
+        }
+
+        function onDown(e) {
+            if(e.target.tagName === 'BUTTON') return;
+            state.isDragging = true;
+            state.dragStart = {x: e.clientX, y: e.clientY};
+        }
+
+        function onMove(e) {
+            state.mouseX = e.clientX;
+            state.mouseY = e.clientY;
+        }
+
+        function onUp(e) {
+            if(state.isDragging) {
+                const dist = Math.hypot(e.clientX - state.dragStart.x, e.clientY - state.dragStart.y);
+                if(dist > 10) {
+                    // Create Wall
+                    state.walls.push({
+                        p1: {x: state.dragStart.x, y: state.dragStart.y},
+                        p2: {x: e.clientX, y: e.clientY},
+                        life: 1.0
+                    });
+                    // Sound
+                    if(state.audio) state.audio.playWallSound(e.clientX, e.clientY, dist);
+                }
+            }
+            state.isDragging = false;
+        }
+
+        function showToast(m) {
+            toast.innerText = m;
+            toast.classList.add('visible');
+            setTimeout(()=>toast.classList.remove('visible'), 3000);
+        }
+
+        // --- Physics Solver (Verlet-ish) ---
+
+        function resolveCollision(particle, wall) {
+            const p1 = wall.p1;
+            const p2 = wall.p2;
+
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const lenSq = dx*dx + dy*dy;
+            
+            // Project particle onto line segment
+            let t = ((particle.x - p1.x) * dx + (particle.y - p1.y) * dy) / lenSq;
+            t = Math.max(0, Math.min(1, t));
+
+            // Find closest point on wall
+            const cx = p1.x + t * dx;
+            const cy = p1.y + t * dy;
+
+            // Calculate distance
+            const distX = particle.x - cx;
+            const distY = particle.y - cy;
+            const dist = Math.sqrt(distX*distX + distY*distY);
+
+            const radius = config.wallThickness / 2 + particle.radius;
+
+            if(dist < radius) {
+                // Collision!
+                const overlap = radius - dist;
+                
+                // Normal vector
+                const nx = distX / dist;
+                const ny = distY / dist;
+
+                // Push particle out
+                particle.x += nx * overlap;
+                particle.y += ny * overlap;
+
+                // Reflect velocity (Bounce)
+                const vDotN = particle.vx * nx + particle.vy * ny;
+                particle.vx -= 2 * vDotN * nx;
+                particle.vy -= 2 * vDotN * ny;
+
+                // Friction
+                particle.vx *= 0.9;
+                particle.vy *= 0.9;
+
+                // Add some chaos/scatter
+                particle.vx += (Math.random()-0.5) * 0.5;
+                particle.vy += (Math.random()-0.5) * 0.5;
+
+                return true; // Collision happened
+            }
+            return false;
+        }
+
+        function loop() {
+            // Trail effect (for fluid look)
+            // We use source-over with low opacity black
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = 'rgba(5, 5, 10, 0.3)'; 
+            ctx.fillRect(0, 0, state.width, state.height);
+
+            // Switch to Additive Blending for Glowing Effect
+            ctx.globalCompositeOperation = 'lighter';
+
+            state.time += 0.01;
+            state.hue = (state.hue + 0.1) % 360;
+
+            // Update and Draw Particles
+            state.particles.forEach(p => {
+                p.update();
+                
+                // Check collisions with all walls
+                let hit = false;
+                for(let w of state.walls) {
+                    if(resolveCollision(p, w)) {
+                        hit = true;
+                    }
+                }
+
+                // Visuals
+                const speed = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+                const size = p.radius + (speed * 0.5); // Stretch based on speed
+                
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, size, 0, Math.PI*2);
+                
+                if(hit) {
+                    // Flash white on collision
+                    ctx.fillStyle = '#fff';
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#fff';
+                } else {
+                    // Normal fluid color
+                    ctx.fillStyle = p.color;
+                    ctx.shadowBlur = 5;
+                    ctx.shadowColor = p.color;
+                }
+                ctx.fill();
+            });
+
+            // Reset blend mode for walls
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.shadowBlur = 0;
+
+            // Draw Walls
+            ctx.lineWidth = config.wallThickness;
+            ctx.lineCap = 'round';
+            state.walls.forEach(w => {
+                ctx.strokeStyle = `hsla(${state.hue}, 80%, 60%, 0.8)`;
+                ctx.beginPath();
+                ctx.moveTo(w.p1.x, w.p1.y);
+                ctx.lineTo(w.p2.x, w.p2.y);
+                ctx.stroke();
+                
+                // Draw anchors
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(w.p1.x, w.p1.y, 3, 0, Math.PI*2);
+                ctx.arc(w.p2.x, w.p2.y, 3, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            // Draw Drag Line
+            if(state.isDragging) {
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.setLineDash([5,5]);
+                ctx.lineWidth = 2;
+                ctx.moveTo(state.dragStart.x, state.dragStart.y);
+                ctx.lineTo(state.mouseX, state.mouseY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        init();
+    </script>
+</body>
+</html>
