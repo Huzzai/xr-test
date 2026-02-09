@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cosmic Weaver: Level 6 (Mobile Audio Fix)</title>
+    <title>Cosmic Weaver: Polished Mobile</title>
     <style>
         :root {
             --bg-color: #050505;
-            --ui-color: rgba(0, 255, 255, 0.15);
-            --ui-border: rgba(0, 255, 255, 0.3);
             --accent: #00ffff;
             --text-main: #e0ffff;
         }
@@ -18,171 +16,116 @@
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
             overflow: hidden; background-color: var(--bg-color);
-            font-family: 'Courier New', Courier, monospace; 
-            color: var(--text-main);
+            font-family: sans-serif; color: var(--text-main);
         }
 
         canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
 
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 100;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            cursor: pointer; 
+        }
+
+        h2 { font-size: 2rem; margin: 0 0 20px 0; color: #fff; text-align: center; }
+        p { color: #888; text-align: center; margin-bottom: 30px; padding: 0 20px; }
+
+        .tap-here {
+            font-size: 1.2rem; color: var(--accent); border: 2px solid var(--accent);
+            padding: 20px 40px; border-radius: 50px; animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(0, 255, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0); }
+        }
+
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
-            pointer-events: none; display: flex; flex-direction: column;
-            justify-content: space-between; padding: 15px;
+            pointer-events: none; display: flex; justify-content: flex-end; padding: 15px;
         }
 
         .interactive { pointer-events: auto; }
-
-        header {
-            display: flex; justify-content: space-between; align-items: center;
-            background: rgba(0, 20, 30, 0.8); backdrop-filter: blur(5px);
-            padding: 10px 15px; border-radius: 4px; border: 1px solid var(--ui-border);
-            width: 100%;
-        }
-
-        h1 {
-            font-size: 1rem; letter-spacing: 1px; margin: 0; 
-            color: var(--accent);
-        }
-
-        button {
-            background: transparent; border: 1px solid var(--ui-border);
-            color: var(--accent); padding: 6px 12px; cursor: pointer;
-            font-family: inherit; font-size: 0.75rem;
-        }
-
-        #start-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 20;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            text-align: center; transition: opacity 0.5s ease;
-        }
-
-        #start-screen.hidden { opacity: 0; pointer-events: none; }
-
-        .hero-text h2 { font-size: 2rem; margin: 0 0 10px 0; color: #fff; }
-        .hero-text p { color: #8892b0; font-size: 0.9rem; margin-bottom: 20px; }
-
-        .cta-button {
-            font-size: 1rem; padding: 12px 30px; border: 1px solid var(--accent);
-            background: rgba(0, 255, 255, 0.05); color: var(--accent);
-            cursor: pointer;
-            min-width: 120px;
-        }
         
-        /* Mobile Specific: Make button easier to tap */
-        @media (hover: none) and (pointer: coarse) {
-            .cta-button { padding: 20px 40px; font-size: 1.2rem; }
+        button {
+            background: rgba(0, 20, 30, 0.8); border: 1px solid var(--accent);
+            color: var(--accent); padding: 10px 20px; font-size: 0.9rem;
         }
 
-        #toast {
-            position: absolute; bottom: 30px; left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 20, 40, 0.9); border: 1px solid var(--accent);
-            padding: 8px 16px; opacity: 0; pointer-events: none;
-            font-size: 0.8rem; color: var(--accent); transition: opacity 0.3s; 
-            white-space: nowrap;
-        }
-        #toast.visible { opacity: 1; }
-
-        .instructions {
-            position: absolute; bottom: 15px; width: 100%; text-align: center;
-            font-size: 0.7rem; color: rgba(0, 255, 255, 0.3); pointer-events: none;
+        #status {
+            position: absolute; bottom: 20px; left: 0; width: 100%; text-align: center;
+            color: #666; font-size: 0.8rem;
         }
     </style>
 </head>
 <body>
 
-    <main>
-        <canvas id="cosmic-canvas"></canvas>
-        
-        <div id="ui-layer">
-            <header class="interactive">
-                <h1>Sim Core</h1>
-                <button id="btn-clear">Clear</button>
-            </header>
-        </div>
+    <div id="start-screen">
+        <h2>AUDIO TEST</h2>
+        <p>Tap anywhere to unlock audio and start.</p>
+        <div class="tap-here">TAP SCREEN</div>
+    </div>
 
-        <div id="toast"></div>
+    <div id="ui-layer">
+        <button id="btn-clear" class="interactive">Clear</button>
+    </div>
 
-        <div id="start-screen" class="interactive">
-            <div class="hero-text">
-                <h2>Level 6: Mobile Core</h2>
-                <p>Audio Fixed. Optimized for Android.</p>
-                <button id="btn-start" class="cta-button">START</button>
-            </div>
-        </div>
-    </main>
+    <div id="status">Waiting for input...</div>
+
+    <canvas id="cosmic-canvas"></canvas>
 
     <script>
-        /**
-         * LEVEL 6 ENGINE (MOBILE AUDIO FIX)
-         * Force Context Resume on User Interaction
-         */
-
-        const config = {
-            particleCount: 250,
-            wallThickness: 5,
-            fluidSpeed: 1.5
+        const config = { 
+            particleCount: 250, 
+            wallThickness: 6, 
+            fluidSpeed: 1.5 
         };
 
         const state = {
-            width: window.innerWidth,
-            height: window.innerHeight,
-            mouseX: 0,
+            width: window.innerWidth, 
+            height: window.innerHeight, 
+            mouseX: 0, 
             mouseY: 0,
-            isDragging: false,
-            dragStart: {x:0, y:0},
+            isDragging: false, 
+            dragStart: {x:0, y:0}, 
+            lastPoint: {x:0, y:0}, // For smoothing
             walls: [], 
             particles: [], 
-            audioContext: null,
-            masterGain: null,
-            hue: 180
+            audioContext: null, 
+            masterGain: null, 
+            hue: 180, 
+            started: false
         };
 
-        // --- Audio (Robust) ---
-        const scale = [65.41, 82.41, 98.00, 110.00, 130.81, 164.81, 196.00, 220.00];
-
+        // --- Audio Engine (Louder for Mobile) ---
+        const scale = [130.81, 164.81, 196.00, 220.00, 261.63, 329.63, 392.00];
+        
         class AudioEngine {
             constructor() {
                 const AC = window.AudioContext || window.webkitAudioContext;
                 state.audioContext = new AC();
                 state.masterGain = state.audioContext.createGain();
-                state.masterGain.gain.value = 0.4; // Slightly louder
+                state.masterGain.gain.value = 0.8; // Louder for phone speakers
                 state.masterGain.connect(state.audioContext.destination);
             }
-            
             resume() {
-                if (!state.audioContext) return;
-                
-                // 1. Resume if suspended
-                if (state.audioContext.state === 'suspended') {
-                    state.audioContext.resume().then(() => {
-                        console.log("Audio Resumed");
-                    }).catch(e => {
-                        console.error("Resume failed", e);
-                    });
-                }
-                
-                // 2. Force state check
-                if (state.audioContext.state === 'running') {
-                    console.log("Audio Running");
-                }
+                if (state.audioContext.state === 'suspended') state.audioContext.resume();
             }
-
-            playWallSound(y) {
+            play(y) {
                 if(!state.audioContext || state.audioContext.state !== 'running') return;
-                
                 const t = state.audioContext.currentTime;
                 const i = Math.floor((1-y/state.height)*scale.length);
                 const freq = scale[Math.max(0, Math.min(i, scale.length-1))];
                 
                 const osc = state.audioContext.createOscillator();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(freq, t);
+                osc.type = 'sine'; 
+                osc.frequency.value = freq;
                 
                 const env = state.audioContext.createGain();
-                env.gain.setValueAtTime(0, t);
-                env.gain.linearRampToValueAtTime(0.3, t+0.05);
+                env.gain.setValueAtTime(0, t); 
+                env.gain.linearRampToValueAtTime(0.4, t+0.05); 
                 env.gain.exponentialRampToValueAtTime(0.001, t+0.5);
                 
                 osc.connect(env); 
@@ -193,40 +136,31 @@
             }
         }
 
+        // --- Fluid Particle ---
         class FluidParticle {
             constructor() {
                 this.init();
             }
             init() {
-                this.x = Math.random() * state.width;
-                this.y = Math.random() * state.height;
-                this.vx = (Math.random() * 0.5) + 0.2; 
-                this.vy = (Math.random() - 0.5) * 0.2;
+                this.x = Math.random() * window.innerWidth;
+                this.y = Math.random() * window.innerHeight;
+                this.vx = Math.random() * 2 + 0.5; 
+                this.vy = (Math.random() - 0.5) * 2;
                 this.radius = Math.random() * 3 + 2;
-                this.baseColor = Math.random() > 0.5 ? '#00ffff' : '#0088ff';
+                this.color = Math.random() > 0.5 ? '#00ffff' : '#0088ff';
             }
             update() {
-                this.x += this.vx * config.fluidSpeed;
-                this.y += this.vy * config.fluidSpeed;
-                
-                if(this.x > state.width) { this.x = 0; this.y = Math.random() * state.height; }
-                if(this.y > state.height) { this.y = 0; this.x = Math.random() * state.width; }
-
-                const dx = this.x - state.mouseX;
-                const dy = this.y - state.mouseY;
-                const distSq = dx*dx + dy*dy;
-                if(distSq < 10000) {
-                    const dist = Math.sqrt(distSq);
-                    const force = (100 - dist) * 0.005;
-                    this.vx += (dx/dist) * force;
-                    this.vy += (dy/dist) * force;
-                }
+                this.x += this.vx * 0.5; 
+                this.y += this.vy * 0.5;
+                if(this.x > state.width) this.x = 0;
+                if(this.y > state.height) this.y = 0;
             }
         }
 
         const canvas = document.getElementById('cosmic-canvas');
         const ctx = canvas.getContext('2d');
         const startScreen = document.getElementById('start-screen');
+        const status = document.getElementById('status');
 
         function init() {
             resize();
@@ -240,25 +174,38 @@
             canvas.ontouchmove = e => { e.preventDefault(); onMove(e.touches[0]); };
             window.ontouchend = onUp;
 
-            document.getElementById('btn-start').onclick = start;
-            document.getElementById('btn-clear').onclick = () => {
-                state.walls = []; state.particles.forEach(p => p.init());
+            document.getElementById('btn-clear').onclick = () => { 
+                state.walls = []; 
+                state.particles.forEach(p => p.init()); 
             };
+            
+            startScreen.addEventListener('click', startExperience);
+            startScreen.addEventListener('touchstart', startExperience);
+
             loop();
         }
 
-        function start() {
-            // Re-initialize Audio completely to be safe
-            if(state.audioContext) {
-                state.audioContext.close();
-            }
-            state.audio = new AudioEngine();
+        function startExperience() {
+            if(state.started) return;
+            state.started = true;
             
-            // FORCE RESUME
+            if(!state.audioContext) state.audio = new AudioEngine();
             state.audio.resume();
+            
+            // TEST TONE
+            try {
+                const osc = state.audioContext.createOscillator();
+                osc.frequency.value = 440;
+                osc.connect(state.audioContext.destination);
+                osc.start();
+                osc.stop(state.audioContext.currentTime + 0.1);
+                status.innerText = "Audio On. Draw Lines!";
+                status.style.color = "#0f0";
+            } catch(e) {
+                status.innerText = "Audio Error";
+            }
 
-            startScreen.classList.add('hidden');
-            showToast("Audio Forced On");
+            startScreen.style.display = 'none';
         }
 
         function resize() {
@@ -270,108 +217,98 @@
 
         function onDown(e) {
             state.isDragging = true;
-            state.dragStart = {x: e.clientX, y: e.clientY};
+            const x = e.clientX || e.touches[0].clientX;
+            const y = e.clientY || e.touches[0].clientY;
+            state.dragStart = {x, y};
+            state.lastPoint = {x, y}; // Initialize last point
         }
 
         function onMove(e) {
-            state.mouseX = e.clientX;
-            state.mouseY = e.clientY;
+            const x = e.clientX || e.touches[0].clientX;
+            const y = e.clientY || e.touches[0].clientY;
+            state.mouseX = x;
+            state.mouseY = y;
+
+            // FIX: Draw segments between touch events to prevent dotted lines
+            if(state.isDragging) {
+                const dx = x - state.lastPoint.x;
+                const dy = y - state.lastPoint.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                // Only add wall segment if moved enough (prevents clutter)
+                if (dist > 10) {
+                    state.walls.push({
+                        p1: {x: state.lastPoint.x, y: state.lastPoint.y},
+                        p2: {x: x, y: y}
+                    });
+                    if(state.audio) state.audio.play(y);
+                    
+                    // Update last point to current
+                    state.lastPoint = {x, y};
+                }
+            }
         }
 
         function onUp(e) {
-            if(state.isDragging) {
-                const dist = Math.hypot(e.clientX - state.dragStart.x, e.clientY - state.dragStart.y);
-                if(dist > 10) {
-                    state.walls.push({
-                        p1: {x: state.dragStart.x, y: state.dragStart.y},
-                        p2: {x: e.clientX, y: e.clientY}
-                    });
-                    // Attempt to play sound
-                    try {
-                        state.audio.playWallSound(e.clientY);
-                    } catch(err) {
-                        console.log("Audio play failed (likely not started yet)", err);
-                    }
-                }
-            }
             state.isDragging = false;
-        }
-
-        function resolveCollision(p, w) {
-            const p1 = w.p1;
-            const p2 = w.p2;
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            const lenSq = dx*dx + dy*dy;
-            let t = ((p.x - p1.x) * dx + (p.y - p1.y) * dy) / lenSq;
-            t = Math.max(0, Math.min(1, t));
-            const cx = p1.x + t * dx;
-            const cy = p1.y + t * dy;
-            const distX = p.x - cx;
-            const distY = p.y - cy;
-            const dist = Math.sqrt(distX*distX + distY*distY);
-            const radius = config.wallThickness + p.radius;
-
-            if(dist < radius) {
-                const overlap = radius - dist;
-                const nx = distX / dist;
-                const ny = distY / dist;
-                p.x += nx * overlap;
-                p.y += ny * overlap;
-                const vDotN = p.vx * nx + p.vy * ny;
-                p.vx -= 2 * vDotN * nx;
-                p.vy -= 2 * vDotN * ny;
-                return true;
-            }
-            return false;
         }
 
         function loop() {
             requestAnimationFrame(loop);
-
             ctx.fillStyle = 'rgba(5, 5, 10, 0.4)'; 
             ctx.fillRect(0, 0, state.width, state.height);
 
+            // Update and Draw Particles
             state.particles.forEach(p => {
                 p.update();
                 let hit = false;
                 for(let w of state.walls) {
-                    if(resolveCollision(p, w)) hit = true;
+                    // Simple AABB/Radius check first for performance
+                    const p1 = w.p1, p2 = w.p2;
+                    const dx = p2.x - p1.x, dy = p2.y - p1.y, lenSq = dx*dx + dy*dy;
+                    let t = ((p.x - p1.x) * dx + (p.y - p1.y) * dy) / lenSq;
+                    t = Math.max(0, Math.min(1, t));
+                    const cx = p1.x + t * dx, cy = p1.y + t * dy;
+                    const distX = p.x - cx, distY = p.y - cy, dist = Math.sqrt(distX*distX + distY*distY);
+                    
+                    if(dist < config.wallThickness + p.radius) {
+                        const nx = distX/dist, ny = distY/dist;
+                        const overlap = (config.wallThickness + p.radius) - dist;
+                        p.x += nx * overlap; p.y += ny * overlap;
+                        const vDotN = p.vx * nx + p.vy * ny;
+                        p.vx -= 2 * vDotN * nx; p.vy -= 2 * vDotN * ny;
+                        hit = true;
+                    }
                 }
-
-                ctx.beginPath();
+                ctx.beginPath(); 
                 ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
-                ctx.fillStyle = hit ? '#fff' : p.baseColor;
+                ctx.fillStyle = hit ? '#fff' : p.color; 
                 ctx.fill();
             });
 
-            ctx.lineWidth = config.wallThickness;
-            ctx.lineCap = 'round';
+            // Draw Walls
+            ctx.lineWidth = config.wallThickness; 
+            ctx.lineCap = 'round'; 
+            ctx.lineJoin = 'round'; // Connect segments smoothly
             ctx.strokeStyle = '#00ffff';
-            state.walls.forEach(w => {
-                ctx.beginPath();
-                ctx.moveTo(w.p1.x, w.p1.y);
+            
+            ctx.beginPath();
+            state.walls.forEach((w, index) => {
+                if (index === 0) ctx.moveTo(w.p1.x, w.p1.y);
+                else ctx.lineTo(w.p1.x, w.p1.y);
                 ctx.lineTo(w.p2.x, w.p2.y);
-                ctx.stroke();
             });
+            ctx.stroke();
 
             if(state.isDragging) {
+                // Visual drag line (optional, strictly for feedback)
                 ctx.beginPath();
-                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                ctx.setLineDash([5,5]);
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 1;
                 ctx.moveTo(state.dragStart.x, state.dragStart.y);
                 ctx.lineTo(state.mouseX, state.mouseY);
                 ctx.stroke();
-                ctx.setLineDash([]);
             }
-        }
-
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.classList.add('visible');
-            setTimeout(() => t.classList.remove('visible'), 2000);
         }
 
         init();
