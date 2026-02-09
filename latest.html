@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cosmic Weaver: Level 6 (Android Optimized)</title>
+    <title>Cosmic Weaver: Level 6 (Mobile Audio Fix)</title>
     <style>
         :root {
             --bg-color: #050505;
@@ -66,6 +66,12 @@
             font-size: 1rem; padding: 12px 30px; border: 1px solid var(--accent);
             background: rgba(0, 255, 255, 0.05); color: var(--accent);
             cursor: pointer;
+            min-width: 120px;
+        }
+        
+        /* Mobile Specific: Make button easier to tap */
+        @media (hover: none) and (pointer: coarse) {
+            .cta-button { padding: 20px 40px; font-size: 1.2rem; }
         }
 
         #toast {
@@ -101,20 +107,20 @@
         <div id="start-screen" class="interactive">
             <div class="hero-text">
                 <h2>Level 6: Mobile Core</h2>
-                <p>Optimized for Android.<br>Draw walls to divert the flow.</p>
-                <button id="btn-start" class="cta-button">Start</button>
+                <p>Audio Fixed. Optimized for Android.</p>
+                <button id="btn-start" class="cta-button">START</button>
             </div>
         </div>
     </main>
 
     <script>
         /**
-         * LEVEL 6 ENGINE (ANDROID OPTIMIZED)
-         * Reduced Particles, No Shadow, Simple Rendering
+         * LEVEL 6 ENGINE (MOBILE AUDIO FIX)
+         * Force Context Resume on User Interaction
          */
 
         const config = {
-            particleCount: 250, // Optimized for mobile (down from 800)
+            particleCount: 250,
             wallThickness: 5,
             fluidSpeed: 1.5
         };
@@ -133,7 +139,7 @@
             hue: 180
         };
 
-        // --- Audio (Simple & Stable) ---
+        // --- Audio (Robust) ---
         const scale = [65.41, 82.41, 98.00, 110.00, 130.81, 164.81, 196.00, 220.00];
 
         class AudioEngine {
@@ -141,25 +147,49 @@
                 const AC = window.AudioContext || window.webkitAudioContext;
                 state.audioContext = new AC();
                 state.masterGain = state.audioContext.createGain();
-                state.masterGain.gain.value = 0.3;
+                state.masterGain.gain.value = 0.4; // Slightly louder
                 state.masterGain.connect(state.audioContext.destination);
-                // No Reverb on mobile to save CPU
             }
-            resume() { if(state.audioContext.state==='suspended') state.audioContext.resume(); }
+            
+            resume() {
+                if (!state.audioContext) return;
+                
+                // 1. Resume if suspended
+                if (state.audioContext.state === 'suspended') {
+                    state.audioContext.resume().then(() => {
+                        console.log("Audio Resumed");
+                    }).catch(e => {
+                        console.error("Resume failed", e);
+                    });
+                }
+                
+                // 2. Force state check
+                if (state.audioContext.state === 'running') {
+                    console.log("Audio Running");
+                }
+            }
+
             playWallSound(y) {
-                if(!state.audioContext) return;
+                if(!state.audioContext || state.audioContext.state !== 'running') return;
+                
                 const t = state.audioContext.currentTime;
                 const i = Math.floor((1-y/state.height)*scale.length);
                 const freq = scale[Math.max(0, Math.min(i, scale.length-1))];
+                
                 const osc = state.audioContext.createOscillator();
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(freq, t);
+                
                 const env = state.audioContext.createGain();
                 env.gain.setValueAtTime(0, t);
-                env.gain.linearRampToValueAtTime(0.2, t+0.05);
+                env.gain.linearRampToValueAtTime(0.3, t+0.05);
                 env.gain.exponentialRampToValueAtTime(0.001, t+0.5);
-                osc.connect(env); env.connect(state.masterGain);
-                osc.start(t); osc.stop(t+0.6);
+                
+                osc.connect(env); 
+                env.connect(state.masterGain);
+                
+                osc.start(t); 
+                osc.stop(t+0.6);
             }
         }
 
@@ -172,8 +202,7 @@
                 this.y = Math.random() * state.height;
                 this.vx = (Math.random() * 0.5) + 0.2; 
                 this.vy = (Math.random() - 0.5) * 0.2;
-                this.radius = Math.random() * 3 + 2; // Larger particles = fewer needed
-                // Simple color string (no hsla string parsing in loop)
+                this.radius = Math.random() * 3 + 2;
                 this.baseColor = Math.random() > 0.5 ? '#00ffff' : '#0088ff';
             }
             update() {
@@ -183,7 +212,6 @@
                 if(this.x > state.width) { this.x = 0; this.y = Math.random() * state.height; }
                 if(this.y > state.height) { this.y = 0; this.x = Math.random() * state.width; }
 
-                // Simple Drag
                 const dx = this.x - state.mouseX;
                 const dy = this.y - state.mouseY;
                 const distSq = dx*dx + dy*dy;
@@ -205,7 +233,6 @@
             window.onresize = resize;
             for(let i=0; i<config.particleCount; i++) state.particles.push(new FluidParticle());
             
-            // Touch/Mouse Events
             canvas.onmousedown = onDown;
             canvas.onmousemove = onMove;
             window.onmouseup = onUp;
@@ -221,9 +248,17 @@
         }
 
         function start() {
+            // Re-initialize Audio completely to be safe
+            if(state.audioContext) {
+                state.audioContext.close();
+            }
             state.audio = new AudioEngine();
+            
+            // FORCE RESUME
             state.audio.resume();
+
             startScreen.classList.add('hidden');
+            showToast("Audio Forced On");
         }
 
         function resize() {
@@ -251,13 +286,17 @@
                         p1: {x: state.dragStart.x, y: state.dragStart.y},
                         p2: {x: e.clientX, y: e.clientY}
                     });
-                    if(state.audio) state.audio.playWallSound(e.clientY);
+                    // Attempt to play sound
+                    try {
+                        state.audio.playWallSound(e.clientY);
+                    } catch(err) {
+                        console.log("Audio play failed (likely not started yet)", err);
+                    }
                 }
             }
             state.isDragging = false;
         }
 
-        // Optimized Collision (No Square Root if possible, but simple enough here)
         function resolveCollision(p, w) {
             const p1 = w.p1;
             const p2 = w.p2;
@@ -279,7 +318,6 @@
                 const ny = distY / dist;
                 p.x += nx * overlap;
                 p.y += ny * overlap;
-                // Simple Bounce
                 const vDotN = p.vx * nx + p.vy * ny;
                 p.vx -= 2 * vDotN * nx;
                 p.vy -= 2 * vDotN * ny;
@@ -291,14 +329,11 @@
         function loop() {
             requestAnimationFrame(loop);
 
-            // Clear with slight opacity for trails (cheaper than filter)
             ctx.fillStyle = 'rgba(5, 5, 10, 0.4)'; 
             ctx.fillRect(0, 0, state.width, state.height);
 
-            // Draw Particles
             state.particles.forEach(p => {
                 p.update();
-                // Check Walls
                 let hit = false;
                 for(let w of state.walls) {
                     if(resolveCollision(p, w)) hit = true;
@@ -310,7 +345,6 @@
                 ctx.fill();
             });
 
-            // Draw Walls
             ctx.lineWidth = config.wallThickness;
             ctx.lineCap = 'round';
             ctx.strokeStyle = '#00ffff';
@@ -331,6 +365,13 @@
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.add('visible');
+            setTimeout(() => t.classList.remove('visible'), 2000);
         }
 
         init();
